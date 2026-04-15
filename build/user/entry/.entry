@@ -1,0 +1,4 @@
+#!/bin/bash
+set -eu
+
+exec "$CRATER_ROOT/bin/docker-entrypoint" "$(basename "${BASH_SOURCE[0]}")" $@

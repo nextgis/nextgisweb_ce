@@ -1,0 +1,151 @@
+#!/bin/bash
+set -e
+
+source libexec/postgres-functions
+
+POSTGRES_DATA_DIR="$CRATER_DATA_DIR/postgres"
+CURRENT_LINK_PATH="$POSTGRES_DATA_DIR/CURRENT"
+
+# Upgrade only works with CURRENT symlink (new layout)
+if [[ ! -L "$CURRENT_LINK_PATH" ]]; then
+    exit 0
+fi
+
+# Check if CRATER_POSTGRES_VERSION_MIN is set
+if [[ -z "${CRATER_POSTGRES_VERSION_MIN}" ]]; then
+    exit 0
+fi
+
+# Read current cluster version
+if [[ ! -f "$CURRENT_LINK_PATH/PG_VERSION" ]]; then
+    echo "ERROR: PG_VERSION not found in current cluster" > /dev/stderr
+    exit 1
+fi
+
+OLD_VERSION=$(cat "$CURRENT_LINK_PATH/PG_VERSION")
+MIN_VERSION="${CRATER_POSTGRES_VERSION_MIN}"
+
+# Check if current version already satisfies minimum requirement
+# Sort versions and take the largest - if it's OLD_VERSION, we're good
+if [[ "$(printf '%s\n' "$OLD_VERSION" "$MIN_VERSION" | sort -V | tail -n1)" == "$OLD_VERSION" ]]; then
+    # Current >= MIN, requirement already satisfied
+    exit 0
+fi
+
+# Current < MIN, upgrade needed
+TARGET_VERSION="$MIN_VERSION"
+
+echo "======================================================================" > /dev/stderr
+echo "Upgrading PostgreSQL from ${OLD_VERSION} to ${TARGET_VERSION}" > /dev/stderr
+echo "======================================================================" > /dev/stderr
+
+cleanup_tmp_clusters
+
+# Create temporary cluster directory for new version
+TMP_CLUSTER_DIR=$(create_tmp_cluster_dir)
+OLD_CLUSTER_DIR=$(readlink -f "$CURRENT_LINK_PATH")
+
+# Initialize new cluster with target version
+initialize_cluster "$TMP_CLUSTER_DIR" "/usr/lib/postgresql/${TARGET_VERSION}/bin/initdb"
+
+# Determine pg_upgrade method (--clone or default copy)
+TMP_TEST_FILE_SRC="$TMP_CLUSTER_DIR/PG_VERSION"
+TMP_TEST_FILE_DST="$TMP_CLUSTER_DIR/.crater_reflink_test"
+test -f "$TMP_TEST_FILE_SRC"
+if cp --reflink=always "$TMP_TEST_FILE_SRC" "$TMP_TEST_FILE_DST" 2>/dev/null; then
+    UPGRADE_METHOD="--clone"
+    echo "Reflink copy supported, using --clone mode" > /dev/stderr
+else
+    UPGRADE_METHOD=""
+    echo "Reflink copy not supported, using regular copy" > /dev/stderr
+fi
+rm -f "$TMP_TEST_FILE_DST"
+
+# Ensure old cluster is cleanly shut down (handle crash recovery if needed)
+echo "Ensuring old cluster is cleanly shut down..." > /dev/stderr
+
+# Remove stale postmaster.pid if exists
+if [[ -f "$OLD_CLUSTER_DIR/postmaster.pid" ]]; then
+    echo "Removing stale postmaster.pid" > /dev/stderr
+    rm -f "$OLD_CLUSTER_DIR/postmaster.pid"
+fi
+
+/usr/lib/postgresql/${OLD_VERSION}/bin/pg_ctl \
+    start -w -D "$OLD_CLUSTER_DIR" \
+    -o "-c listen_addresses='' -c unix_socket_directories='/tmp'"
+
+# Repair PostGIS extensions before upgrade
+echo "Repairing PostGIS extensions before upgrade..." > /dev/stderr
+export PGHOST=/tmp
+if ! repair_postgis_extensions; then
+    echo "======================================================================" > /dev/stderr
+    echo "ERROR: Failed to repair PostGIS extensions" > /dev/stderr
+    echo "pg_upgrade cannot proceed with broken extensions." > /dev/stderr
+    echo "======================================================================" > /dev/stderr
+    unset PGHOST
+    /usr/lib/postgresql/${OLD_VERSION}/bin/pg_ctl stop -w -D "$OLD_CLUSTER_DIR" -m fast
+    exit 1
+fi
+unset PGHOST
+
+/usr/lib/postgresql/${OLD_VERSION}/bin/pg_ctl \
+    stop -w -D "$OLD_CLUSTER_DIR" -m fast
+
+# Run pg_upgrade --check first
+echo "Running pg_upgrade --check..." > /dev/stderr
+(
+    # As pg_upgrade creates files like delete_old_cluster.sh in the current
+    # directory, we change to the temporary cluster directory for this
+    # operation. Subshell ( ... ) is used to avoid changing the current
+    # directory of the main script.
+    cd "$TMP_CLUSTER_DIR"
+
+    if ! /usr/lib/postgresql/${TARGET_VERSION}/bin/pg_upgrade \
+        --old-bindir=/usr/lib/postgresql/${OLD_VERSION}/bin \
+        --new-bindir=/usr/lib/postgresql/${TARGET_VERSION}/bin \
+        --old-datadir="$OLD_CLUSTER_DIR" \
+        --new-datadir="$TMP_CLUSTER_DIR" \
+        $UPGRADE_METHOD \
+        --check; then
+        echo "======================================================================" > /dev/stderr
+        echo "ERROR: pg_upgrade --check failed" > /dev/stderr
+        echo "The cluster cannot be upgraded automatically." > /dev/stderr
+        echo "======================================================================" > /dev/stderr
+        exit 1
+    fi
+
+    # Run actual pg_upgrade
+    echo "Running pg_upgrade..." > /dev/stderr
+
+    if ! /usr/lib/postgresql/${TARGET_VERSION}/bin/pg_upgrade \
+        --old-bindir=/usr/lib/postgresql/${OLD_VERSION}/bin \
+        --new-bindir=/usr/lib/postgresql/${TARGET_VERSION}/bin \
+        --old-datadir="$OLD_CLUSTER_DIR" \
+        --new-datadir="$TMP_CLUSTER_DIR" \
+        $UPGRADE_METHOD; then
+        echo "======================================================================" > /dev/stderr
+        echo "ERROR: pg_upgrade failed" > /dev/stderr
+        echo "Upgrade process failed. Old cluster is intact." > /dev/stderr
+        echo "======================================================================" > /dev/stderr
+        exit 1
+    fi
+)
+
+# Cleanup pg_upgrade artifacts
+rm -f "$TMP_CLUSTER_DIR"/*.old
+rm -f "$TMP_CLUSTER_DIR"/delete_old_cluster.sh
+
+echo "======================================================================" > /dev/stderr
+
+# Make new cluster current
+OLD_CLUSTER_NAME=$(basename "$OLD_CLUSTER_DIR")
+make_cluster_current "$TMP_CLUSTER_DIR"
+
+# Rename old cluster with _upg suffix
+UPG_CLUSTER_NAME="${OLD_CLUSTER_NAME}_upg"
+UPG_CLUSTER_PATH="$POSTGRES_DATA_DIR/$UPG_CLUSTER_NAME"
+mv "$OLD_CLUSTER_DIR" "$UPG_CLUSTER_PATH"
+
+echo "Old cluster preserved as: $UPG_CLUSTER_NAME" > /dev/stderr
+echo "Upgrade completed successfully to PostgreSQL ${TARGET_VERSION}" > /dev/stderr
+echo "======================================================================" > /dev/stderr

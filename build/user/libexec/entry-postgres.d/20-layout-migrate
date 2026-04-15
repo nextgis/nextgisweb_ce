@@ -1,0 +1,44 @@
+#!/bin/bash
+set -e
+
+source libexec/postgres-functions
+
+POSTGRES_DATA_DIR="$CRATER_DATA_DIR/postgres"
+CURRENT_LINK_PATH="$POSTGRES_DATA_DIR/CURRENT"
+PG_VERSION_PATH="$POSTGRES_DATA_DIR/PG_VERSION"
+
+if [[ -L "$CURRENT_LINK_PATH" ]]; then
+    if [[ -e "$PG_VERSION_PATH" ]]; then
+        echo "WARNING: Both CURRENT symlink and PG_VERSION file found!" > /dev/stderr
+    fi
+    exit 0
+elif [[ ! -e "$PG_VERSION_PATH" ]]; then
+    # No CURRENT link and no PG_VERSION file, nothing to do
+    exit 0
+elif [[ ! ${CRATER_POSTGRES_LAYOUT_MIGRATE^^} =~ ^(1|YES|TRUE)$ ]]; then
+    echo "Layout migration is disabled by default, set CRATER_POSTGRES_LAYOUT_MIGRATE=1 to enable" > /dev/stderr
+    exit 0
+fi
+
+echo "Migrating to CURRENT symlink layout..." > /dev/stderr
+
+cleanup_tmp_clusters
+TMP_CLUSTER_DIR=$(create_tmp_cluster_dir)
+
+# Find all files to copy, excluding specific patterns
+readarray -d '' FILES_TO_COPY < <(find "$POSTGRES_DATA_DIR" \
+    -mindepth 1 -maxdepth 1 \
+    -not -name "cl_*" \
+    -not -name "lost+found" \
+    -not -name "CURRENT" \
+    -not -name "postmaster.pid" \
+    -not -name "postmaster.opts" \
+    -print0)
+
+echo "Copying ${#FILES_TO_COPY[@]} items to $TMP_CLUSTER_DIR..." > /dev/stderr
+cp -al -t "$TMP_CLUSTER_DIR" "${FILES_TO_COPY[@]}"
+
+make_cluster_current "$TMP_CLUSTER_DIR"
+
+# NOTE: Remove PG_VERSION first to avoid inconsistent state if interrupted
+rm -rf "${FILES_TO_COPY[@]}"

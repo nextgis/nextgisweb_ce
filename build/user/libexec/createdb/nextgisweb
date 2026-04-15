@@ -1,0 +1,12 @@
+#!/bin/bash
+set -e
+
+source libexec/postgres-functions
+
+create_user_and_database nextgisweb $(get_secret postgres)
+execute_psql_superuser nextgisweb """
+CREATE EXTENSION IF NOT EXISTS postgis;
+ALTER EXTENSION postgis UPDATE;
+DROP EXTENSION IF EXISTS postgis_raster;
+DROP EXTENSION IF EXISTS hstore;
+"""

@@ -1,0 +1,7 @@
+#!/bin/bash
+set -e
+
+[[ ${NGWDOCKER_DEFAULT_INSTANCE^^} =~ ^(1|YES|TRUE)$ ]] || exit 0
+[[ ${NGWDOCKER_WAIT_FOR_SERVICE^^} =~ ^(1|YES|TRUE)$ ]] || exit 0
+
+nextgisweb wait_for_service

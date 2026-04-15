@@ -1,0 +1,17 @@
+#!/bin/bash
+set -e
+
+CONFIG_FN="$CRATER_CONFIG_DIR/app/config.ini"
+[[ -f "$CONFIG_FN" ]] && exit 0
+
+CONFIG_DN="$(dirname "$CONFIG_FN")"
+[[ -d "$CONFIG_DN" ]] || mkdir -p "$CONFIG_DN"
+
+echo "Writing $CONFIG_FN ..." > /dev/stderr
+cat > "$CONFIG_FN" <<EOF
+# NextGIS Web configuration file
+# ==============================
+#
+# Use \`nextgisweb-config\` to see all available configuration options.
+#
+EOF

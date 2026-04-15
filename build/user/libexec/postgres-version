@@ -1,0 +1,35 @@
+#!/bin/bash
+# Detect PostgreSQL version from existing cluster or environment and set PATH
+# accordingly. Invoked by docker-entrypoint.sh after entry-point.d scripts.
+set -e
+
+if [[ -f "$CRATER_DATA_DIR/postgres/CURRENT/PG_VERSION" ]]; then
+    export CRATER_POSTGRES_VERSION=$(cat "$CRATER_DATA_DIR/postgres/CURRENT/PG_VERSION")
+    echo "Using PostgreSQL ${CRATER_POSTGRES_VERSION} found in CURRENT/PG_VERSION cluster" > /dev/stderr
+elif [[ -f "$CRATER_DATA_DIR/postgres/PG_VERSION" ]]; then
+    export CRATER_POSTGRES_VERSION=$(cat "$CRATER_DATA_DIR/postgres/PG_VERSION")
+    echo "Using PostgreSQL ${CRATER_POSTGRES_VERSION} found in PG_VERSION file" > /dev/stderr
+elif [[ ! -z "$CRATER_POSTGRES_VERSION" ]]; then
+    echo "Using PostgreSQL ${CRATER_POSTGRES_VERSION} from the environment" > /dev/stderr
+else
+    CRATER_POSTGRES_VERSION="$(
+        (
+            cd /usr/lib/postgresql
+            shopt -s nullglob
+            printf '%s\n' */bin/postgres
+        ) \
+            | sed -nE 's#^([0-9]+)/bin/postgres$#\1#p' \
+            | sort --version-sort --reverse \
+            | head -n 1
+    )"
+
+    if [[ -z "$CRATER_POSTGRES_VERSION" ]]; then
+        echo "Failed to detect PostgreSQL version" > /dev/stderr
+        exit 1
+    else
+        export CRATER_POSTGRES_VERSION
+        echo "Using PostgreSQL ${CRATER_POSTGRES_VERSION} which is the latest" > /dev/stderr
+    fi
+fi
+
+export PATH=/usr/lib/postgresql/$CRATER_POSTGRES_VERSION/bin:$PATH

@@ -1,0 +1,5 @@
+#!/bin/bash
+set -e
+cd $CRATER_ROOT
+export PGUSER=postgres
+exec bin/server-postgres

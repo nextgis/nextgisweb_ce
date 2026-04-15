@@ -1,0 +1,63 @@
+#!/bin/bash
+set -e
+
+for f in libexec/entry-postgres.d/*; do $f; done
+
+source libexec/postgres-pgdata
+source libexec/postgres-version
+
+wait_for_startup() {
+    local ret=60
+    until [ $ret -eq 0 ] || psql -c "SELECT 1" > /dev/null 2>&1; do
+        ((ret--))
+        if [ $((ret % 10)) -eq 0 -a $ret -gt 0 ]; then
+            echo "Waiting for postgres startup, $ret seconds remaining..." > /dev/stderr
+        fi
+        sleep 1
+    done
+
+    if [ $ret -eq 0 ]; then
+        echo "ERROR: Failed to wait for postgres startup!" > /dev/stderr
+        return 1
+    else
+        return 0
+    fi
+}
+
+check_collate() {
+    local non_unicode_databases
+    non_unicode_databases=$(
+        psql -tc "SELECT STRING_AGG(datname, ', ') 
+        FROM pg_database
+        WHERE NOT (
+            datcollate LIKE '%.UTF-8'
+            AND datctype LIKE '%.UTF-8'
+        )" | xargs echo
+    )
+    if [[ $non_unicode_databases != '' ]]; then
+        echo "Some databases have non-Unicode LC_COLLATION or LC_CTYPE!" > /dev/stderr
+        echo "Refer \"PostgreSQL cluster recreation\" section to tackle this issue." > /dev/stderr
+    fi
+}
+
+setup_databases() {
+    local db
+    echo "Setting up databases [$NGWDOCKER_POSTGRES_DATABASES]..." > /dev/stderr
+    (
+        set -e -o pipefail
+        for db in $NGWDOCKER_POSTGRES_DATABASES; do
+            local setup="$CRATER_ROOT/libexec/createdb/$db"
+            if ! "$setup" 2>&1 | sed "s/^/[$db] /" > /dev/stderr; then
+                echo "ERROR: Setup for '$db' failed, terminating!" > /dev/stderr
+                kill -INT 1
+                return 1
+            fi
+        done
+    )
+    echo "Databases setup completed" > /dev/stderr
+}
+
+wait_for_startup && check_collate && setup_databases &
+
+set +e
+exec postgres

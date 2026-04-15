@@ -1,0 +1,22 @@
+mode: production
+single_container: true
+base_image: ubuntu:24.04
+build_git_ignore: false
+
+distribution:
+  name: nextgisweb_ce
+  description: NextGIS Web Community Edition
+  version: ${CRATER_DISTRIBUTION_VERSION}
+  date: ${CRATER_DISTRIBUTION_DATE}
+
+package:
+  ngwdocker:
+    postgres:
+      postgres_version: ["12"]
+      postgis_version: ["3"]
+
+  nextgisweb:
+  nextgisweb_qgis:
+  nextgisweb_mapserver:
+
+  nextgisweb_i18n:

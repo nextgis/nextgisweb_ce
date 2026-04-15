@@ -1,0 +1,15 @@
+#!/bin/bash
+set -e
+
+source libexec/postgres-functions
+
+POSTGRES_DATA_DIR="$CRATER_DATA_DIR/postgres"
+
+if [[ -L "$POSTGRES_DATA_DIR/CURRENT" || -e "$POSTGRES_DATA_DIR/PG_VERSION" ]]; then
+    exit 0
+fi
+
+cleanup_tmp_clusters
+TMP_CLUSTER_DIR=$(create_tmp_cluster_dir)
+initialize_cluster "$TMP_CLUSTER_DIR"
+make_cluster_current "$TMP_CLUSTER_DIR"

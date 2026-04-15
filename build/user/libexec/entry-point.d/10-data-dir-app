@@ -1,0 +1,6 @@
+#!/bin/bash
+set -e
+
+[[ -d "$CRATER_DATA_DIR/app" ]] || mkdir "$CRATER_DATA_DIR/app"
+
+[[ -d "$CRATER_DATA_DIR/app/ngwdocker" ]] || mkdir "$CRATER_DATA_DIR/app/ngwdocker"

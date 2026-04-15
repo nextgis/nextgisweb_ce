@@ -1,0 +1,142 @@
+#!/bin/bash
+
+get_secret() {
+    local file=$CRATER_SECRET_DIR/$1
+    if [ ! -f $file ]; then
+        local dir=$(dirname $file)
+        [ -d $dir ] || mkdir $dir
+        local tmp=$(mktemp -p $dir)
+        echo "Generating secret [$1] ..." > /dev/stderr
+        < /dev/urandom tr -dc A-Z-a-z-0-9 | head -c16 > $tmp
+        mv $tmp $file
+    fi
+    cat $file
+}
+
+create_user_and_database() {
+    local name=$1
+    local pass=$2
+
+    psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$name'" | grep -q 1 || ( \
+        echo "CREATE USER" > /dev/stderr && \
+        psql -qc "CREATE USER $name PASSWORD '$pass'" )
+
+    psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$name'" | grep -q 1 || ( \
+        echo "CREATE DATABASE" > /dev/stderr && \
+        psql -qc "CREATE DATABASE $name OWNER $name" )
+
+}
+
+execute_psql_superuser() {
+    local name=$1
+    psql -q -1 -v ON_ERROR_STOP=1 --dbname $name < <(
+        set -e
+        echo "ALTER USER $name SUPERUSER;"
+        echo "SET SESSION AUTHORIZATION $name;"
+        echo '\set ECHO queries'
+        echo "$2"
+        echo '\set ECHO none'
+        echo "; -- To terminate last command"
+        echo "SET SESSION AUTHORIZATION DEFAULT;"
+        echo "ALTER USER $name NOSUPERUSER;"
+    )
+}
+
+create_tmp_cluster_dir() {
+    local timestamp=$(printf %x $(date +%s))
+    local random=$(openssl rand -hex 2)
+    local name="cl_${timestamp}_${random}_tmp"
+    local path="$CRATER_DATA_DIR/postgres/$name"
+    mkdir -m 0700 "$path"
+    echo "$path"
+}
+
+make_cluster_current() {
+    local path="$1"
+    local name=$(basename "$path")
+
+    if [[ "$name" != cl_*_tmp ]]; then
+        echo "ERROR: Invalid temporary cluster name: $name" > /dev/stderr
+        return 1
+    fi
+
+    if [[ "$path" != "$CRATER_DATA_DIR/postgres/$name" ]]; then
+        echo "ERROR: Cluster path must be within $CRATER_DATA_DIR/postgres/" > /dev/stderr
+        return 1
+    fi
+
+    local final_path="${path%_tmp}"
+    local final_name=$(basename "$final_path")
+
+    mv "$path" "$final_path"
+    rm -f "$CRATER_DATA_DIR/postgres/CURRENT"
+    ln -s "$final_name" "$CRATER_DATA_DIR/postgres/CURRENT"
+    echo "New CURRENT cluster: $final_name" > /dev/stderr
+}
+
+cleanup_tmp_clusters() {
+    for tmp_dir in "$CRATER_DATA_DIR"/postgres/cl_*_tmp; do
+        [ -d "$tmp_dir" ] || continue
+        echo "Removing temporary cluster directory: $(basename "$tmp_dir")" > /dev/stderr
+        rm -rf "$tmp_dir"
+    done
+}
+
+initialize_cluster() {
+    local cluster_path="$1"
+    local pg_bin="${2:-initdb}"
+
+    if [[ -z "$cluster_path" ]]; then
+        echo "ERROR: initialize_cluster requires cluster_path parameter" > /dev/stderr
+        return 1
+    fi
+
+    echo "Initializing PostgreSQL cluster at $cluster_path..." > /dev/stderr
+
+    "$pg_bin" --pgdata "$cluster_path" \
+        --username postgres \
+        --locale C.UTF-8 --encoding UTF-8 \
+        --auth-local trust \
+        --auth-host md5
+
+    # Allow connections not only from localhost
+    sed -ri "s!^#?(listen_addresses)\s*=\s*\S+.*!\1 = '*'!" "$cluster_path/postgresql.conf"
+    sed -ri 's!127.0.0.1\/32!all         !g' "$cluster_path/pg_hba.conf"
+
+    echo "include '$CRATER_CONFIG_DIR/postgres/postgresql.conf'" >> "$cluster_path/postgresql.conf"
+
+    echo "PostgreSQL cluster initialized successfully" > /dev/stderr
+}
+
+repair_postgis_extensions() {
+    # Get list of all user databases (excluding system databases)
+    local databases=$(psql -tAc "SELECT datname FROM pg_database WHERE datname NOT IN ('template0', 'template1', 'postgres') ORDER BY datname")
+
+    if [[ -z "$databases" ]]; then
+        echo "No user databases found" > /dev/stderr
+        return 0
+    fi
+
+    for dbname in $databases; do
+        # Check if PostGIS extension exists in this database
+        local has_postgis=$(psql -d "$dbname" -tAc "SELECT 1 FROM pg_extension WHERE extname = 'postgis' LIMIT 1" 2>/dev/null || true)
+
+        if [[ -n "$has_postgis" ]]; then
+            echo "Repairing PostGIS extensions in database '$dbname'..." > /dev/stderr
+            # Call postgis_extensions_upgrade() twice as required for postgis_raster 2.3 upgrade
+            # See: https://postgis.net/documentation/tips/tip-upgrading-raster-from-2-3/
+            if execute_psql_superuser "$dbname" "
+                ALTER EXTENSION postgis UPDATE;
+                SELECT postgis_extensions_upgrade();
+                SELECT postgis_extensions_upgrade();
+            "; then
+                echo "Successfully repaired PostGIS extensions in database '$dbname'" > /dev/stderr
+            else
+                echo "ERROR: Failed to repair PostGIS extensions in database '$dbname'" > /dev/stderr
+                return 1
+            fi
+        fi
+    done
+
+    return 0
+}

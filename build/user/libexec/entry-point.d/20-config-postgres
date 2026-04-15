@@ -1,0 +1,18 @@
+#!/bin/bash
+set -e
+
+CONFIG_FN="$CRATER_CONFIG_DIR/postgres/postgresql.conf"
+[[ -f "$CONFIG_FN" ]] && exit 0
+
+CONFIG_DN="$(dirname "$CONFIG_FN")"
+[[ -d "$CONFIG_DN" ]] || mkdir -p "$CONFIG_DN"
+
+echo "Writing $CONFIG_FN ..." > /dev/stderr
+cat > "$CONFIG_FN" <<EOF
+# NextGIS Web PostgreSQL configuration file
+# =========================================
+# 
+# This file is included to postgresql.conf, so you can put here additional
+# PostgreSQL configuration options.
+#
+EOF

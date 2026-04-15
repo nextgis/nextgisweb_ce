@@ -1,0 +1,66 @@
+#!/bin/bash
+shopt -s nullglob
+set -e
+
+cat > run/uwsgi/paste.ini <<EOF
+[app:main]
+use = egg:nextgisweb
+EOF
+
+cat > run/uwsgi/uwsgi.ini <<EOF
+[uwsgi]
+paste = config:${NGWROOT}/run/uwsgi/paste.ini
+EOF
+
+export UWSGI_NEXT_MULE_ID=1
+
+for f in libexec/entry-server.d/*; do . $f; done
+for f in libexec/entry-uwsgi.d/*; do . $f; done
+
+# By default only requests with 4xx and 5xx statuses are logged
+UWSGI_LOGGING=${UWSGI_LOGGING:-error}
+case $UWSGI_LOGGING in
+    none)
+        UWSGI_LOGGING_OPTS="--disable-logging"
+        ;;
+    error)
+        UWSGI_LOGGING_OPTS="--disable-logging --log-4xx --log-5xx"
+        ;;
+    all)
+        UWSGI_LOGGING_OPTS=""
+        ;;
+    *)
+        echo "Invalid value of UWSGI_LOGGING" > /dev/stderr
+        exit 1
+        ;;
+esac
+
+# On-demand workers by default (use UWSGI_CHEAP=0 to disable).
+UWSGI_CHEAP_OPTS=""
+UWSGI_CHEAP=${UWSGI_CHEAP:-3600}
+if [[ "$UWSGI_CHEAP" -gt 0 ]]; then
+    UWSGI_CHEAP_OPTS="--cheap --idle $UWSGI_CHEAP"
+fi
+
+# Prevent creation of core dump files if something went wrong with uWSGI.
+ulimit -Sc 0
+
+# Debug toolbar doesn't work with uWSGI, so let's disable it.
+export NEXTGISWEB__PYRAMID__DEBUGTOOLBAR__ENABLED=false
+
+touch run/uwsgi/touch-reload
+
+exec uwsgi --${UWSGI_MODE:-http}=${UWSGI_HOST:-0.0.0.0}:${UWSGI_PORT:-8080} \
+    --master --lazy-apps --enable-threads --need-app --die-on-term \
+    --processes ${UWSGI_PROCESSES:-8} --offload-threads=${UWSGI_OFFLOAD_THREADS:-2} \
+    --harakiri=${UWSGI_HARAKIRI:-900} --http-timeout=${UWSGI_HTTP_TIMEOUT:-604800} \
+    --disable-write-exception --buffer-size=${UWSGI_BUFFER_SIZE:-32768} \
+    --master-fifo run/uwsgi/master-fifo --touch-reload run/uwsgi/touch-reload \
+    --stats run/uwsgi/stats --memory-report \
+    --max-worker-lifetime ${UWSGI_MAX_WORKER_LIFETIME:-14400} \
+    --max-worker-lifetime-delta ${UWSGI_MAX_WORKER_LIFETIME_DELTA:-120} \
+    --reload-on-rss ${UWSGI_RELOAD_ON_RSS:-1024} \
+    --ini run/uwsgi/uwsgi.ini \
+    ${UWSGI_CHEAP_OPTS} \
+    ${UWSGI_LOGGING_OPTS} \
+    ${UWSGI_OPTS}

@@ -1,0 +1,4 @@
+#!/bin/bash
+set -e
+cd $CRATER_ROOT
+exec bin/server-uwsgi

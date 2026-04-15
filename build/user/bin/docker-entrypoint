@@ -1,0 +1,16 @@
+#!/bin/bash
+set -e
+shopt -s nullglob
+
+export PATH=$CRATER_ROOT/bin:$CRATER_ROOT/env/bin:$PATH
+export S6_KEEP_ENV=1
+
+for f in libexec/entry-point.d/*; do $f; done
+source libexec/postgres-version
+
+set +e
+if [[ "$@" == *"server"* ]]; then
+    exec /init
+else
+    exec "$@"
+fi

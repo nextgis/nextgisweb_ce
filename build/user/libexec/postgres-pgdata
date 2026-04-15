@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+
+if [[ -L "$CRATER_DATA_DIR/postgres/CURRENT" ]]; then
+    export PGDATA=$(readlink -f "$CRATER_DATA_DIR/postgres/CURRENT")
+else
+    export PGDATA=$CRATER_DATA_DIR/postgres
+fi
+
+echo "Using PGDATA at $PGDATA" > /dev/stderr

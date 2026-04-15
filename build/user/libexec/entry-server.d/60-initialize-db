@@ -1,0 +1,14 @@
+#!/bin/bash
+set -e
+
+[[ ${NGWDOCKER_DEFAULT_INSTANCE^^} =~ ^(1|YES|TRUE)$ ]] || exit 0
+
+F_INITIALIZE_DB="$CRATER_DATA_DIR/app/ngwdocker/INITIALIZE_DB"
+if [[ ${NGWDOCKER_INITIALIZE_DB^^} =~ ^(1|YES|TRUE)$ && ! -f "$F_INITIALIZE_DB" ]]; then 
+    echo "Database initialization ..." > /dev/stderr
+    nextgisweb initialize_db
+    touch "$F_INITIALIZE_DB"
+elif [[ ${NGWDOCKER_MIGRATION_UPGRADE^^} =~ ^(1|YES|TRUE)$ ]]; then
+    echo "Database migration ..." > /dev/stderr
+    nextgisweb migration upgrade --no-dry-run
+fi

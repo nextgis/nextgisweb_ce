@@ -1,0 +1,6 @@
+/.venv
+
+/build/package/*
+/build/*.log
+/docker-compose.yaml
+/docker-compose.override.yaml
