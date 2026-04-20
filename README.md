@@ -1,5 +1,36 @@
 # NextGIS Web Community Edition
 
+Official Docker-based setup for running NextGIS Web Community Edition.
+
+This repository is intended for users and developers who want to launch a self-hosted [NextGIS Web](https://github.com/nextgis/nextgisweb) instance with Docker.
+
+![NextGIS logo](assets/nextgis_logo_blue.png)
+
+## Table of contents
+
+- [What is NextGIS Web](#what-is-nextgis-web)
+- [Quick start with plain Docker](#quick-start-with-plain-docker)
+- [Docker Compose](#docker-compose)
+  - [Installation](#installation)
+  - [Configuration](#configuration)
+  - [NextGIS Web CLI](#nextgis-web-cli)
+  - [Reverse proxy configuration](#reverse-proxy-configuration)
+  - [Uninstalling](#uninstalling)
+- [Repository overview](#repository-overview)
+- [Building images from sources](#building-images-from-sources)
+- [Commercial support](#commercial-support)
+- [Community and ecosystem](#community-and-ecosystem)
+
+## What is NextGIS Web
+
+**NextGIS Web** is an open-source Web GIS server for **geospatial data management**, **web map publishing**, and **QGIS-centered collaborative workflows**.
+
+It combines a powerful spatial backend, a web-based interface for administration and map publishing, and a full REST API. Suitable for projects ranging from small teams to enterprise-grade GIS infrastructures.
+
+For the core application detailed description and source code, see the main repository: [nextgis/nextgisweb](https://github.com/nextgis/nextgisweb).
+
+![NextGIS Web web maps](assets/ngw_showcase.webp)
+
 ## Quick start with plain Docker
 
 Using a plain Docker container is the easiest way to get NextGIS Web CE up and running. It is suitable for testing and experimentation, but Docker Compose (see below) is recommended for continuous use. Assuming Docker is installed and running on your machine, run the following command to start NextGIS Web CE:
@@ -177,3 +208,29 @@ just build
 ```
 
 After that, you can run the container as described in the "Quick start with plain Docker" section, but replace `nextgis/nextgisweb-ce:latest` with `nextgisweb-ce`.
+
+## Commercial support
+
+Professional support, cloud and enterprise deployments, and consulting services are available from the NextGIS team.
+
+☁️ [Ready-to-go cloud](https://nextgis.com/pricing-base/)
+
+🏢 [Professional on-premise deployment](https://nextgis.com/pricing/)
+
+🌍 [NextGIS Website](https://nextgis.com)  
+
+✉️ [Contact us](https://nextgis.com/contact/)
+
+## Community and ecosystem
+
+💬 [NextGIS community forum](https://community.nextgis.com)
+
+🐞 [GitHub issues and discussions](https://github.com/nextgis/nextgisweb/issues)
+
+🎨 [Frontend libraries](https://github.com/nextgis/nextgisweb_frontend)
+
+🧩 [NextGIS Web - main repository](https://github.com/nextgis/nextgisweb)
+
+🧩 [NextGIS Connect - QGIS integration plugin](https://github.com/nextgis/nextgis_connect)
+
+🧩 [NextGIS Mobile - integrated Android application](https://github.com/nextgis/nextgis_mobile_android)
