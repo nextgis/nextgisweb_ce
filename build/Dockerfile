@@ -33,9 +33,7 @@ RUN set -ex; \
 RUN set -ex; \
     export DEBIAN_FRONTEND=noninteractive; \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/1.gpg; \
-    echo "deb [signed-by=/etc/apt/keyrings/1.gpg] https://deb.nodesource.com/node_20.x nodistro main" > /etc/apt/sources.list.d/1.list; \
-    curl -fsSL https://dl.yarnpkg.com/debian/pubkey.gpg | gpg --dearmor -o /etc/apt/keyrings/2.gpg; \
-    echo "deb [signed-by=/etc/apt/keyrings/2.gpg] https://dl.yarnpkg.com/debian/ stable main" > /etc/apt/sources.list.d/2.list; \
+    echo "deb [signed-by=/etc/apt/keyrings/1.gpg] https://deb.nodesource.com/node_24.x nodistro main" > /etc/apt/sources.list.d/1.list; \
     ( : ; \
         cd /tmp; \
         curl -sSL https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.0.5.tar.gz > zlib-ng-2.0.5.tar.gz; \
@@ -46,23 +44,31 @@ RUN set -ex; \
         echo '/opt/zlib-ng/lib/libz.so' >> /etc/ld.so.preload; \
         rm -rf /tmp/zlib-ng; \
     ); \
-    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/3.gpg; \
-    echo "deb [signed-by=/etc/apt/keyrings/3.gpg] http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -sc)-pgdg main" > /etc/apt/sources.list.d/3.list; \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/2.gpg; \
+    echo "deb [signed-by=/etc/apt/keyrings/2.gpg] http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -sc)-pgdg main" > /etc/apt/sources.list.d/2.list; \
     apt-get update; \
     apt-get --yes -qq install --no-install-recommends  \
-        nodejs yarn libgdal-dev libgeos-dev gdal-bin g++ libxml2-dev libxslt1-dev zlib1g-dev libjpeg-turbo8-dev postgresql-client libmagic-dev fonts-liberation fonts-dejavu postgresql-common locales; \
+        nodejs libgdal-dev libgeos-dev gdal-bin g++ libxml2-dev libxslt1-dev zlib1g-dev libjpeg-turbo8-dev postgresql-client libmagic-dev fonts-liberation fonts-dejavu postgresql-common locales; \
     sed -ri "s/#(create_main_cluster) .*$/\1 = false/" /etc/postgresql-common/createcluster.conf; \
     localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8; \
-    add-apt-repository --yes --no-update "ppa:savoury1/ffmpeg4"; \
-    add-apt-repository --yes --no-update "ppa:savoury1/chromium"; \
-    curl -fsSL https://download.qgis.org/downloads/qgis-archive-keyring.gpg | gpg --dearmor -o /etc/apt/keyrings/4.gpg; \
-    echo "deb [signed-by=/etc/apt/keyrings/4.gpg] https://qgis.org/ubuntu-ltr $(lsb_release -sc) main" > /etc/apt/sources.list.d/4.list; \
+    curl -fsSL https://download.qgis.org/downloads/qgis-archive-keyring.gpg | gpg --dearmor -o /etc/apt/keyrings/3.gpg; \
+    echo "deb [signed-by=/etc/apt/keyrings/3.gpg] https://qgis.org/ubuntu-ltr $(lsb_release -sc) main" > /etc/apt/sources.list.d/3.list; \
     apt-get update; \
     apt-get --yes -qq install --no-install-recommends  \
-        "^postgresql-(12)$" "^postgresql-(12)-postgis-(3)$" "^postgresql-(12)-postgis-(3)-scripts$" libpcre3 libpcre3-dev gettext chromium-browser ghostscript libqgis-dev qgis-providers-common build-essential cmake qt5-image-formats-plugins cmake swig libfreetype6-dev libgeos-dev libproj-dev; \
+        "^postgresql-(12)$" "^postgresql-(12)-postgis-(3)$" "^postgresql-(12)-postgis-(3)-scripts$" libpcre3 libpcre3-dev gettext ghostscript libasound2t64 libatk-bridge2.0-0 libatk1.0-0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 unzip libqgis-dev qgis-providers-common build-essential cmake qt5-image-formats-plugins cmake swig libfreetype6-dev libgeos-dev libproj-dev; \
     rm -rf /var/lib/apt/lists/*; \
     curl -sSL https://github.com/jackhftang/tusc/releases/download/0.4.7/tusc_linux_amd64 > /usr/local/bin/tusc; chmod +x /usr/local/bin/tusc; \
-    userdel postgres
+    userdel postgres; \
+    ( : ; \
+        cd $(mktemp -d); \
+        export NPM_CONFIG_UPDATE_NOTIFIER=false; \
+        export PUPPETEER_CACHE_DIR=$(pwd); \
+        path=$(npx --yes @puppeteer/browsers install --format '{{path}}' chrome-headless-shell@stable); \
+        cp -a $(dirname $path) /opt/chrome; \
+        ln -s /opt/chrome/chrome-headless-shell /usr/local/bin/chrome; \
+        rm -rf $(pwd); \
+    ); \
+    corepack enable pnpm
 
 ENV CRATER_USER=crater
 ENV CRATER_ROOT=/opt/crater
@@ -77,7 +83,7 @@ RUN set -ex; \
     getent passwd 1000 && userdel -r $(getent passwd 1000 | cut -d: -f1); \
     groupadd -g 1000 $CRATER_USER; \
     useradd -d $CRATER_ROOT -u 1000 -g $CRATER_USER $CRATER_USER; \
-    mkdir -p $CRATER_ROOT $CRATER_DATA_DIR $CRATER_CONFIG_DIR $CRATER_SECRET_DIR $CRATER_BACKUP_DIR $CRATER_ROOT/bin $CRATER_ROOT/libexec $CRATER_ROOT/libexec/entry-point.d $CRATER_ROOT/libexec/entry-server.d $CRATER_ROOT/libexec/entry-uwsgi.d $CRATER_ROOT/run $CRATER_ROOT/run/uwsgi $CRATER_ROOT/build $CRATER_ROOT/build/font $CRATER_ROOT/backup $CRATER_ROOT/package $CRATER_ROOT/data $CRATER_ROOT/data/app $CRATER_ROOT/config $CRATER_ROOT/config/app $CRATER_ROOT/dist $CRATER_ROOT/node_modules $CRATER_ROOT/data $CRATER_ROOT/data/postgres $CRATER_ROOT/config $CRATER_ROOT/config/postgres $CRATER_ROOT/secret; \
+    mkdir -p $CRATER_ROOT $CRATER_DATA_DIR $CRATER_CONFIG_DIR $CRATER_SECRET_DIR $CRATER_BACKUP_DIR $CRATER_ROOT/.cache $CRATER_ROOT/backup $CRATER_ROOT/bin $CRATER_ROOT/build $CRATER_ROOT/build/font $CRATER_ROOT/config $CRATER_ROOT/config/app $CRATER_ROOT/data $CRATER_ROOT/data/app $CRATER_ROOT/dist $CRATER_ROOT/libexec $CRATER_ROOT/libexec/entry-point.d $CRATER_ROOT/libexec/entry-server.d $CRATER_ROOT/libexec/entry-uwsgi.d $CRATER_ROOT/node_modules $CRATER_ROOT/package $CRATER_ROOT/run $CRATER_ROOT/run/uwsgi $CRATER_ROOT/data $CRATER_ROOT/data/postgres $CRATER_ROOT/config $CRATER_ROOT/config/postgres $CRATER_ROOT/secret; \
     chown -R $CRATER_USER:$CRATER_USER /etc/s6-overlay; \
     chown -R $CRATER_USER:$CRATER_USER /var/run/postgresql /var/lib/postgresql; \
     ln -s $CRATER_ROOT/data/postgres /var/lib/postgresql/data; \
@@ -123,9 +129,13 @@ RUN set -ex; \
     SA_CONCURRENCY=$($CRATER_ROOT/env/bin/python -c "import sqlalchemy.util.concurrency as m; print(m.__file__)"); \
     sed -i "s/^\(\s\+\)import greenlet/\1raise ImportError/" $SA_CONCURRENCY; \
     NEXTGISWEB__ENVIRONMENT__ENABLE_OPTIONAL_COMPONENTS=YES env/bin/nextgisweb jsrealm install --build; \
-    rm -rf node_modules .cache/yarn; \
     ln -s package/nextgisweb/.prettierrc.cjs $CRATER_ROOT/; \
-    ln -s package/nextgisweb/eslint.config.cjs $CRATER_ROOT/; \
+    ln -s package/nextgisweb/eslint.config.ts $CRATER_ROOT/; \
+    ( : ; \
+        cd $CRATER_ROOT; \
+        rm -rf .cache node_modules; \
+        mkdir .cache node_modules; \
+     ); \
     rm -rf /tmp/uwsgi
 
 COPY --chown=$CRATER_USER:$CRATER_USER user $CRATER_ROOT
