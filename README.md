@@ -64,7 +64,7 @@ docker volume rm ngw_ce
 
 ## Docker Compose
 
-Docker Compose is recommended for continuous use of NextGIS Web CE. Itsimplifies container and volume management and makes updates and maintenance easier.
+Docker Compose is recommended for continuous use of NextGIS Web CE. It simplifies container and volume management and makes updates and maintenance easier.
 
 ### Installation
 
