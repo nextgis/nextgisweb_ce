@@ -18,5 +18,6 @@ package:
   nextgisweb:
   nextgisweb_qgis:
   nextgisweb_mapserver:
+  nextgisweb_community:
 
   nextgisweb_i18n:

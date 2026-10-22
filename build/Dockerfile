@@ -46,16 +46,17 @@ RUN set -ex; \
     ); \
     curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/2.gpg; \
     echo "deb [signed-by=/etc/apt/keyrings/2.gpg] http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -sc)-pgdg main" > /etc/apt/sources.list.d/2.list; \
+    printf "Package: *\nPin: release o=apt.postgresql.org\nPin-Priority: 1\n\nPackage: postgresql-common postgresql-client-* libpq5 libpq-dev\nPin: release o=apt.postgresql.org\nPin-Priority: 500" > /etc/apt/preferences.d/pgdg; \
     apt-get update; \
     apt-get --yes -qq install --no-install-recommends  \
-        nodejs libgdal-dev libgeos-dev gdal-bin g++ libxml2-dev libxslt1-dev zlib1g-dev libjpeg-turbo8-dev postgresql-client libmagic-dev fonts-liberation fonts-dejavu postgresql-common locales; \
+        nodejs libgdal-dev libgeos-dev gdal-bin g++ libxml2-dev libxslt1-dev zlib1g-dev libjpeg-turbo8-dev postgresql-client-12 libmagic-dev fonts-dejavu fonts-liberation fonts-noto-cjk fonts-noto-color-emoji fonts-noto-core fonts-noto-mono postgresql-common locales; \
     sed -ri "s/#(create_main_cluster) .*$/\1 = false/" /etc/postgresql-common/createcluster.conf; \
-    localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8; \
+    localedef -i en_US -c -f UTF-8 en_US.UTF-8; \
     curl -fsSL https://download.qgis.org/downloads/qgis-archive-keyring.gpg | gpg --dearmor -o /etc/apt/keyrings/3.gpg; \
     echo "deb [signed-by=/etc/apt/keyrings/3.gpg] https://qgis.org/ubuntu-ltr $(lsb_release -sc) main" > /etc/apt/sources.list.d/3.list; \
     apt-get update; \
     apt-get --yes -qq install --no-install-recommends  \
-        "^postgresql-(12)$" "^postgresql-(12)-postgis-(3)$" "^postgresql-(12)-postgis-(3)-scripts$" libpcre3 libpcre3-dev gettext ghostscript libasound2t64 libatk-bridge2.0-0 libatk1.0-0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 unzip libqgis-dev qgis-providers-common build-essential cmake qt5-image-formats-plugins cmake swig libfreetype6-dev libgeos-dev libproj-dev; \
+        "^postgresql-(12)$" "^postgresql-(12)-postgis-(3)$" "^postgresql-(12)-postgis-(3)-scripts$" libpcre2-8-0 libpcre2-dev gettext ghostscript libasound2t64 libatk-bridge2.0-0 libatk1.0-0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 unzip libqgis-dev qgis-providers-common build-essential cmake qt5-image-formats-plugins cmake swig libfreetype6-dev libgeos-dev libproj-dev; \
     rm -rf /var/lib/apt/lists/*; \
     curl -sSL https://github.com/jackhftang/tusc/releases/download/0.4.7/tusc_linux_amd64 > /usr/local/bin/tusc; chmod +x /usr/local/bin/tusc; \
     userdel postgres; \
@@ -120,6 +121,7 @@ RUN set -ex; \
         --editable $CRATER_ROOT/package/nextgisweb \
         --editable $CRATER_ROOT/package/nextgisweb_qgis \
         --editable $CRATER_ROOT/package/nextgisweb_mapserver \
+        --editable $CRATER_ROOT/package/nextgisweb_community \
         /tmp/uwsgi/src \
         uwsgitop; \
     SITE=$($CRATER_ROOT/env/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])'); \
@@ -162,7 +164,7 @@ ENV SSL_CERT_FILE="$CA_CERT"
 ENV CURL_CA_BUNDLE="$CA_CERT"
 ENV NGWDOCKER_POSTGRES_DATABASES="nextgisweb"
 ENV PATH="$CRATER_ROOT/entry:$PATH"
-ENV NGWDOCKER_PACKAGES="nextgisweb nextgisweb_qgis nextgisweb_mapserver"
+ENV NGWDOCKER_PACKAGES="nextgisweb nextgisweb_qgis nextgisweb_mapserver nextgisweb_community"
 ENV NGWDOCKER_DEFAULT_INSTANCE="yes"
 ENV NGWDOCKER_WAIT_FOR_SERVICE="yes"
 ENV NGWDOCKER_INITIALIZE_DB="yes"

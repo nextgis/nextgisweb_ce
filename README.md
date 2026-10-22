@@ -33,10 +33,10 @@ For the core application detailed description and source code, see the main repo
 
 ## Quick start with plain Docker
 
-Using a plain Docker container is the easiest way to get NextGIS Web CE up and running. It is suitable for testing and experimentation, but Docker Compose (see below) is recommended for continuous use. Assuming Docker is installed and running on your machine, run the following command to start NextGIS Web CE in a named container with a persistent volume (`26.07.0` is the current version):
+Using a plain Docker container is the easiest way to get NextGIS Web CE up and running. It is suitable for testing and experimentation, but Docker Compose (see below) is recommended for continuous use. Assuming Docker is installed and running on your machine, run the following command to start NextGIS Web CE in a named container with a persistent volume (`26.10.0` is the current version):
 
 ```bash
-docker run --name ngw_ce -dp 8080:8080 -v ngw_ce:/opt/crater/data nextgis/nextgisweb-ce:26.07.0 server
+docker run --name ngw_ce -dp 8080:8080 -v ngw_ce:/opt/crater/data nextgis/nextgisweb-ce:26.10.0 server
 ```
 
 Wait a few moments, then you can access your Web GIS:
@@ -75,10 +75,10 @@ mkdir /srv/ngw_ce
 cd /srv/ngw_ce
 ```
 
-Create the `/srv/ngw_ce/.env` file with the following contents, where `26.07.0` is the current version:
+Create the `/srv/ngw_ce/.env` file with the following contents, where `26.10.0` is the current version:
 
 ```text
-IMAGE_VERSION=26.07.0
+IMAGE_VERSION=26.10.0
 ```
 
 Then create `/srv/ngw_ce/docker-compose.yaml`:

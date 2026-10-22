@@ -10,6 +10,9 @@
 [submodule "package/nextgisweb_mapserver"]
 	path = package/nextgisweb_mapserver
 	url = git@github.com:nextgis/nextgisweb_mapserver.git
+[submodule "package/nextgisweb_community"]
+	path = package/nextgisweb_community
+	url = git@github.com:nextgis/nextgisweb_community.git
 [submodule "package/nextgisweb_i18n"]
 	path = package/nextgisweb_i18n
 	url = git@github.com:nextgis/nextgisweb_i18n.git
